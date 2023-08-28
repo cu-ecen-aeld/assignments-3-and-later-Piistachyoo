@@ -12,6 +12,7 @@ BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
+WORKING_DIR=`pwd`
 
 if [ $# -lt 1 ]
 then
@@ -109,7 +110,7 @@ sudo mknod -m 666 dev/null c 1 3
 sudo mknod -m 600 dev/console c 5 1
 
 # TODO: Clean and build the writer utility
-cd /home/omar/aelds/repo/assignment-1-Piistachyoo/finder-app/
+cd $WORKING_DIR
 make clean
 make CROSS_COMPILE=${CROSS_COMPILE}
 
@@ -119,7 +120,7 @@ cp writer ${OUTDIR}/rootfs/home
 cp finder.sh ${OUTDIR}/rootfs/home
 cp autorun-qemu.sh ${OUTDIR}/rootfs/home
 cp finder-test.sh ${OUTDIR}/rootfs/home
-cd /home/omar/aelds/repo/assignment-1-Piistachyoo/conf
+cd $WORKING_DIR/../conf
 cp username.txt ${OUTDIR}/rootfs/home
 cp assignment.txt ${OUTDIR}/rootfs/home
 
