@@ -1,5 +1,9 @@
 # Set Compiler
-CC = $(CROSS_COMPILE)
+CC = aarch64-none-linux-gnu-
+
+
+
+
 
 # Set Flags
 FLAGS = -g -Wall -I/
