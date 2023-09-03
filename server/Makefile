@@ -8,10 +8,10 @@ all: aesdsocket
 	@echo "build done!"
 
 aesdsocket: socket.o
-	$(CC)gcc $(CFLAGS) socket.o -o aesdsocket
+	$(CC) $(CFLAGS) socket.o -o aesdsocket
 
 socket.o: socket.c
-	$(CC)gcc $(CFLAGS) -c socket.c -o socket.o
+	$(CC) $(CFLAGS) -c socket.c -o socket.o
 
 clean:
 	rm -f *.o aesdsocket
