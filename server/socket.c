@@ -1,4 +1,4 @@
-#include <sys/types.h>
++#include <sys/types.h>
 #include <sys/socket.h>
 #include <string.h>
 #include <stdio.h>
@@ -120,6 +120,8 @@ void send_data(void){
 		send(peerSocketFD, str_buffer, strlen(str_buffer), MSG_WAITALL);
 	}
 	fclose(file);
+	printf("Closed connection from %u:%u:%u:%u\n", peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
+	syslog(LOG_PRIO(LOG_DEBUG), "Closed connection from %u:%u:%u:%u\n", peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
 }
 
 int main(int argc, char *argv[]){
