@@ -1,4 +1,4 @@
-+#include <sys/types.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <string.h>
 #include <stdio.h>
@@ -14,6 +14,7 @@
 #define BUFF_MAX_LEN		4000000
 int mySocketFD, peerSocketFD;
 FILE *file;
+struct sockaddr peeradd;
 
 void signal_handler(int signal){
 	if(signal == SIGINT){
@@ -89,7 +90,6 @@ int initiate_connection(void){
 
 void receive_data(void){
 	char my_buffer[BUFF_MAX_LEN];
-	struct sockaddr peeradd;
 	socklen_t len = sizeof(struct sockaddr);
 	peerSocketFD = accept(mySocketFD, &peeradd, &len);
 	if(peerSocketFD == -1){
