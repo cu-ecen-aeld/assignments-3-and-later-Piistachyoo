@@ -1,8 +1,14 @@
 # Add cross compilation support
-CC=${CROSS_COMPILE}
+
+ifneq ($(CROSS_COMPILE),)
+	CC ?= ${CROSS_COMPILE}
+else
+	CC = gcc
+endif
+
 
 # Set flags
-CFLAGS = -g -Wall -Werror
+CFLAGS += -g -Wall -Werror -pthread
 
 all: aesdsocket
 	@echo "build done!"

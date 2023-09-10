@@ -9,42 +9,44 @@
 #include <syslog.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <pthread.h>
+#include <time.h>
 
 #define LOG_PRIO(_LEVEL)	(LOG_USER | _LEVEL)
-#define BUFF_MAX_LEN		4000000
+#define BUFF_MAX_LEN		5000000
+
+struct node{
+	pthread_t thread;
+	struct node *next;
+}thread_list;
+pthread_t timer_thread_handle;
 int mySocketFD, peerSocketFD;
 FILE *file;
+pthread_mutex_t file_mutex;
 struct sockaddr peeradd;
+struct node *HEAD = NULL;
 
 void signal_handler(int signal){
-	if(signal == SIGINT){
-		printf("Caught signal SIGINT!\n");
-		printf("Terminating...\n");
-		close(mySocketFD);
-		close(peerSocketFD);			
-		remove("/var/tmp/aesdsocketdata");
-		shutdown(mySocketFD, SHUT_RDWR);
-		exit(0);
-	}
-	else if(signal == SIGTERM){
-		printf("Caught signal SIGTERM!\n");
-		printf("Terminating...\n");
-		close(mySocketFD);
-		close(peerSocketFD);			
-		remove("/var/tmp/aesdsocketdata");
-		shutdown(mySocketFD, SHUT_RDWR);
-		exit(0);
-	}
-	else if(signal == SIGKILL){
-		printf("Caught signal SIGKILL!\n");
-		printf("Terminating...\n");
-		close(mySocketFD);
-		close(peerSocketFD);			
-		remove("/var/tmp/aesdsocketdata");
-		shutdown(mySocketFD, SHUT_RDWR);
-		exit(0);
-	}
-	else{ /* Do Nothing */}
+	printf("Caught signal SIGINT!\n");
+	printf("Terminating...\n");
+//	struct node *iterator = HEAD;
+//	struct node *temp = iterator;
+	pthread_cancel(timer_thread_handle);
+	pthread_join(timer_thread_handle, NULL);
+//	while(iterator){
+		//pthread_cancel(iterator->thread);
+		//iterator = iterator->next;
+		/*
+		free(iterator);
+		iterator = temp->next;
+		temp = temp->next;
+		*/
+//	}
+	close(mySocketFD);
+	close(peerSocketFD);			
+	remove("/var/tmp/aesdsocketdata");
+	shutdown(mySocketFD, SHUT_RDWR);
+	exit(0);
 }
 
 int initiate_connection(void){
@@ -90,13 +92,7 @@ int initiate_connection(void){
 
 void receive_data(void){
 	char my_buffer[BUFF_MAX_LEN];
-	socklen_t len = sizeof(struct sockaddr);
-	peerSocketFD = accept(mySocketFD, &peeradd, &len);
-	if(peerSocketFD == -1){
-		perror("accept");
-	}
-	printf("Accepted connection from %u:%u:%u:%u\n", peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
-	syslog(LOG_PRIO(LOG_DEBUG), "Accepted connection from %u:%u:%u:%u\n", peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
+	
 	int index = 0;
 	int buffer_len = 0;
 
@@ -108,24 +104,68 @@ void receive_data(void){
 		}
 		index++;
 	}
+//	pthread_mutex_lock(&file_mutex);
 	file = fopen("/var/tmp/aesdsocketdata", "a");
 	fwrite(my_buffer, sizeof(char), buffer_len, file);
 	fclose(file);
+//	pthread_mutex_unlock(&file_mutex);
 }
 
 void send_data(void){
-	char str_buffer[BUFF_MAX_LEN];
+	char *str_buffer = (char*)malloc (BUFF_MAX_LEN);
+//	pthread_mutex_lock(&file_mutex);
 	file = fopen("/var/tmp/aesdsocketdata", "r");
 	while(fgets(str_buffer, BUFF_MAX_LEN, file)){
 		send(peerSocketFD, str_buffer, strlen(str_buffer), MSG_WAITALL);
 	}
 	fclose(file);
+//	pthread_mutex_unlock(&file_mutex);
 	printf("Closed connection from %u:%u:%u:%u\n", peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
 	syslog(LOG_PRIO(LOG_DEBUG), "Closed connection from %u:%u:%u:%u\n", peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
+	free(str_buffer);
+}
+
+void *start_thread(void *arg){
+	pthread_mutex_lock(&file_mutex);
+	receive_data();
+	send_data();
+	pthread_mutex_unlock(&file_mutex);
+	pthread_exit(arg);
+}
+
+void *timer_thread(void *arg){
+	int old;
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &old);
+	char timestr[200];
+	time_t t;
+	struct tm *tmp;
+	t = time(NULL);
+	while(1){
+		sleep(10);
+		tmp = localtime(&t);
+		if(tmp == NULL){
+			perror("localtime");
+			exit(EXIT_FAILURE);
+		}
+		if(strftime(timestr, sizeof(timestr), "%a, %d %b %Y %T %z", tmp) == 0){
+			fprintf(stderr, "strftime returned 0");
+			exit(EXIT_FAILURE);
+		}
+		pthread_mutex_lock(&file_mutex);
+		file = fopen("/var/tmp/aesdsocketdata", "a");
+		fwrite("timestamp:", sizeof(char), strlen("timestamp:"), file);
+		fwrite(timestr, sizeof(char), strlen(timestr), file);
+		fwrite("\n", sizeof(char), strlen("\n"), file);
+		fclose(file);
+		pthread_mutex_unlock(&file_mutex);
+	}
+	
+
 }
 
 int main(int argc, char *argv[]){
-	int daemon_flag = (argc > 1) ? ((strcmp(argv[1], "-d") == 0) ? 1 : 0) : 0;
+	int ret;
+	
 	if(argc > 1){
 		if(strcmp(argv[1], "-d") == 0){
 			pid_t pid = fork();
@@ -157,13 +197,31 @@ int main(int argc, char *argv[]){
 	/* Truncate file */
 	file = fopen("/var/tmp/aesdsocketdata", "w");
 	fclose(file);
-
+	pthread_create(&timer_thread_handle, NULL, timer_thread, (void*)NULL);
 	while(1){
-		receive_data();
-		send_data();
+		socklen_t len = sizeof(struct sockaddr);
+		peerSocketFD = accept(mySocketFD, &peeradd, &len);
+		if(peerSocketFD == -1){
+			perror("accept");
+			continue;
+		}
+		printf("Accepted connection from %u:%u:%u:%u\n", peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
+		syslog(LOG_PRIO(LOG_DEBUG), "Accepted connection from %u:%u:%u:%u\n", peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
+		struct node *new = (struct node*)malloc(sizeof(struct node));
+		ret = pthread_create(&(new->thread), NULL, start_thread, (void*)NULL);
+		if(0 != ret){
+			syslog(LOG_PRIO(LOG_ERR), "Error creating thread!");
+		}
+		if(HEAD == NULL){
+			HEAD = new;
+			new->next = NULL;
+		}
+		else{
+			new->next = NULL;
+			HEAD = new;
+		}
+		pthread_join(new->thread, NULL);
+		free(new);
 	}
-	
-	
-	printf("%d\n", daemon_flag);
 	return 0;
 }
