@@ -7,14 +7,17 @@ else
 endif
 
 
-# Set flags
-CFLAGS += -g -Wall -Werror -pthread
 
-all: aesdsocket
+# Set flags
+CFLAGS ?= -g -Wall -Werror -pthread
+TARGET ?= aesdsocket
+LDFLAGS ?= -lpthread -lrt
+
+all: $(TARGET)
 	@echo "build done!"
 
-aesdsocket: socket.o
-	$(CC) $(CFLAGS) socket.o -o aesdsocket
+$(TARGET): socket.o
+	$(CC) $(CFLAGS) $(INCLUDES) $(LDFLAGS) socket.o -o aesdsocket 
 
 socket.o: socket.c
 	$(CC) $(CFLAGS) -c socket.c -o socket.o
