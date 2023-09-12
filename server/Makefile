@@ -1,14 +1,10 @@
 # Add cross compilation support
 
-ifneq ($(CROSS_COMPILE),)
-	CC ?= ${CROSS_COMPILE}
-else
-	CC = gcc
-endif
 
 
 
 # Set flags
+CC ?= $(CROSS_COMPILE)gcc
 CFLAGS ?= -g -Wall -Werror -pthread
 TARGET ?= aesdsocket
 LDFLAGS ?= -lpthread -lrt
