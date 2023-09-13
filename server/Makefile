@@ -13,10 +13,10 @@ all: $(TARGET)
 	@echo "build done!"
 
 $(TARGET): socket.o
-	$(CC) $(CFLAGS) $(INCLUDES) $(LDFLAGS) socket.o -o aesdsocket 
+	$(CC) $(CFLAGS) $(INCLUDES) $(LDFLAGS) --static socket.o -o aesdsocket 
 
 socket.o: socket.c
-	$(CC) $(CFLAGS) -c socket.c -o socket.o
+	$(CC) $(CFLAGS) -c socket.c -o socket.o --static
 
 clean:
 	rm -f *.o aesdsocket
