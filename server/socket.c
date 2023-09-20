@@ -150,8 +150,29 @@ void *start_thread(void *arg) {
     pthread_mutex_lock(&file_mutex);
     syslog(LOG_PRIO(LOG_DEBUG), "Acquired mutex\n");
     syslog(LOG_PRIO(LOG_DEBUG), "Calling receive_data()\n");
-    receive_data();
-    syslog(LOG_PRIO(LOG_DEBUG), "Received data\n");
+    // receive_data();
+    syslog(LOG_PRIO(LOG_DEBUG), "Entered function %s\n", __func__);
+    char my_buffer[BUFF_MAX_LEN];
+
+    int index = 0;
+    int buffer_len = 0;
+    syslog(LOG_PRIO(LOG_DEBUG), "Started receiving data\n");
+    while (1) {
+        recv(peerSocketFD, &(my_buffer[index]), 1, MSG_WAITALL);
+        buffer_len++;
+        if (my_buffer[index] == '\n') {
+            break;
+        }
+        index++;
+    }
+    syslog(LOG_PRIO(LOG_DEBUG), "Opening file\n");
+    //	pthread_mutex_lock(&file_mutex);
+    file = fopen(PATH, "a");
+    syslog(LOG_PRIO(LOG_DEBUG), "Writing to file\n");
+    fwrite(my_buffer, sizeof(char), buffer_len, file);
+    syslog(LOG_PRIO(LOG_DEBUG), "Closing file\n");
+    fclose(file);
+    syslog(LOG_PRIO(LOG_DEBUG), "End of function receive_data()\n");
     send_data();
     syslog(LOG_PRIO(LOG_DEBUG), "Sent data\n");
     pthread_mutex_unlock(&file_mutex);
