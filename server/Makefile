@@ -1,22 +1,23 @@
 # Add cross compilation support
 
-
+ifneq ($(CROSS_COMPILE),)
+	CC ?= ${CROSS_COMPILE}
+else
+	CC = gcc
+endif
 
 
 # Set flags
-CC ?= $(CROSS_COMPILE)gcc
-CFLAGS ?= -g -Wall -Werror -pthread
-TARGET ?= aesdsocket
-LDFLAGS ?= -lpthread -lrt
+CFLAGS += -g -Wall -Werror -pthread
 
-all: $(TARGET)
+all: aesdsocket
 	@echo "build done!"
 
-$(TARGET): socket.o
-	$(CC) $(CFLAGS) $(INCLUDES) $(LDFLAGS) --static socket.o -o aesdsocket 
+aesdsocket: socket.o
+	$(CC) $(CFLAGS) socket.o -o aesdsocket
 
 socket.o: socket.c
-	$(CC) $(CFLAGS) -c socket.c -o socket.o --static
+	$(CC) $(CFLAGS) -c socket.c -o socket.o
 
 clean:
 	rm -f *.o aesdsocket

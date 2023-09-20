@@ -15,10 +15,21 @@
 #define LOG_PRIO(_LEVEL) (LOG_USER | _LEVEL)
 #define BUFF_MAX_LEN 5000000
 
+#define USE_AESD_CHAR_DEVICE 1
+
+#ifndef USE_AESD_CHAR_DEVICE
+#define PATH "/var/tmp/aesdsocketdata"
+#else
+#define PATH "/dev/aesdchar"
+#endif
+
 struct node {
     pthread_t thread;
     struct node *next;
 } thread_list;
+#ifndef USE_AESD_CHAR_DEVICE
+pthread_t timer_thread_handle;
+#endif
 int mySocketFD, peerSocketFD;
 FILE *file;
 pthread_mutex_t file_mutex;
@@ -28,9 +39,26 @@ struct node *HEAD = NULL;
 void signal_handler(int signal) {
     printf("Caught signal SIGINT!\n");
     printf("Terminating...\n");
+//	struct node *iterator = HEAD;
+//	struct node *temp = iterator;
+#ifndef USE_AESD_CHAR_DEVICE
+    pthread_cancel(timer_thread_handle);
+    pthread_join(timer_thread_handle, NULL);
+#endif
+    //	while(iterator){
+    // pthread_cancel(iterator->thread);
+    // iterator = iterator->next;
+    /*
+    free(iterator);
+    iterator = temp->next;
+    temp = temp->next;
+    */
+    //	}
     close(mySocketFD);
     close(peerSocketFD);
-    remove("/dev/aesdchar");
+#ifndef USE_AESD_CHAR_DEVICE
+    remove(PATH);
+#endif
     shutdown(mySocketFD, SHUT_RDWR);
     exit(0);
 }
@@ -91,7 +119,7 @@ void receive_data(void) {
         index++;
     }
     //	pthread_mutex_lock(&file_mutex);
-    file = fopen("/dev/aesdchar", "a");
+    file = fopen(PATH, "a");
     fwrite(my_buffer, sizeof(char), buffer_len, file);
     fclose(file);
     //	pthread_mutex_unlock(&file_mutex);
@@ -100,7 +128,7 @@ void receive_data(void) {
 void send_data(void) {
     char *str_buffer = (char *)malloc(BUFF_MAX_LEN);
     //	pthread_mutex_lock(&file_mutex);
-    file = fopen("/dev/aesdchar", "r");
+    file = fopen(PATH, "r");
     while (fgets(str_buffer, BUFF_MAX_LEN, file)) {
         send(peerSocketFD, str_buffer, strlen(str_buffer), MSG_WAITALL);
     }
@@ -121,7 +149,36 @@ void *start_thread(void *arg) {
     pthread_mutex_unlock(&file_mutex);
     pthread_exit(arg);
 }
-
+#ifndef USE_AESD_CHAR_DEVICE
+void *timer_thread(void *arg) {
+    int old;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &old);
+    char timestr[200];
+    time_t t;
+    struct tm *tmp;
+    t = time(NULL);
+    while (1) {
+        sleep(10);
+        tmp = localtime(&t);
+        if (tmp == NULL) {
+            perror("localtime");
+            exit(EXIT_FAILURE);
+        }
+        if (strftime(timestr, sizeof(timestr), "%a, %d %b %Y %T %z", tmp) ==
+            0) {
+            fprintf(stderr, "strftime returned 0");
+            exit(EXIT_FAILURE);
+        }
+        pthread_mutex_lock(&file_mutex);
+        file = fopen(PATH, "a");
+        fwrite("timestamp:", sizeof(char), strlen("timestamp:"), file);
+        fwrite(timestr, sizeof(char), strlen(timestr), file);
+        fwrite("\n", sizeof(char), strlen("\n"), file);
+        fclose(file);
+        pthread_mutex_unlock(&file_mutex);
+    }
+}
+#endif
 int main(int argc, char *argv[]) {
     int ret;
 
@@ -152,9 +209,14 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    /* Truncate file */
-    file = fopen("/dev/aesdchar", "w");
+/* Truncate file */
+#ifndef USE_AESD_CHAR_DEVICE
+    file = fopen(PATH, "w");
     fclose(file);
+#endif
+#ifndef USE_AESD_CHAR_DEVICE
+    pthread_create(&timer_thread_handle, NULL, timer_thread, (void *)NULL);
+#endif
     while (1) {
         socklen_t len = sizeof(struct sockaddr);
         peerSocketFD = accept(mySocketFD, &peeradd, &len);
