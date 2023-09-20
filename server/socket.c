@@ -105,6 +105,7 @@ int initiate_connection(void) {
 }
 
 void receive_data(void) {
+    syslog(LOG_PRIO(LOG_DEBUG), "Entered function %s\n", __func__);
     char my_buffer[BUFF_MAX_LEN];
 
     int index = 0;
@@ -148,6 +149,7 @@ void send_data(void) {
 void *start_thread(void *arg) {
     pthread_mutex_lock(&file_mutex);
     syslog(LOG_PRIO(LOG_DEBUG), "Acquired mutex\n");
+    syslog(LOG_PRIO(LOG_DEBUG), "Calling receive_data()\n");
     receive_data();
     syslog(LOG_PRIO(LOG_DEBUG), "Received data\n");
     send_data();
