@@ -109,7 +109,7 @@ void receive_data(void) {
 
     int index = 0;
     int buffer_len = 0;
-
+    syslog(LOG_PRIO(LOG_DEBUG), "Started receiving data\n");
     while (1) {
         recv(peerSocketFD, &(my_buffer[index]), 1, MSG_WAITALL);
         buffer_len++;
@@ -118,9 +118,12 @@ void receive_data(void) {
         }
         index++;
     }
+    syslog(LOG_PRIO(LOG_DEBUG), "Opening file\n");
     //	pthread_mutex_lock(&file_mutex);
     file = fopen(PATH, "a");
+    syslog(LOG_PRIO(LOG_DEBUG), "Writing to file\n");
     fwrite(my_buffer, sizeof(char), buffer_len, file);
+    syslog(LOG_PRIO(LOG_DEBUG), "Closing file\n");
     fclose(file);
     //	pthread_mutex_unlock(&file_mutex);
 }
