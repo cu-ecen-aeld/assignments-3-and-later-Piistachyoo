@@ -147,6 +147,7 @@ void send_data(void) {
 }
 
 void *start_thread(void *arg) {
+    syslog(LOG_PRIO(LOG_DEBUG), "Acquiring mutex\n");
     pthread_mutex_lock(&file_mutex);
     syslog(LOG_PRIO(LOG_DEBUG), "Acquired mutex\n");
     syslog(LOG_PRIO(LOG_DEBUG), "Calling receive_data()\n");
@@ -260,6 +261,7 @@ int main(int argc, char *argv[]) {
                peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4],
                peeradd.sa_data[5]);
         struct node *new = (struct node *)malloc(sizeof(struct node));
+        syslog(LOG_PRIO(LOG_DEBUG), "Creating thread\n");
         ret = pthread_create(&(new->thread), NULL, start_thread, (void *)NULL);
         if (0 != ret) {
             syslog(LOG_PRIO(LOG_ERR), "Error creating thread!");
@@ -271,6 +273,7 @@ int main(int argc, char *argv[]) {
             new->next = NULL;
             HEAD = new;
         }
+        syslog(LOG_PRIO(LOG_DEBUG), "Thread creation done!\n");
         pthread_join(new->thread, NULL);
         free(new);
     }
