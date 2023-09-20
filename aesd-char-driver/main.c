@@ -59,7 +59,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
         PDEBUG("Not enough data written!\n");
         return 0;
     }
-
+    PDEBUG("Readed data\n");
     retval = ret_entry->size;
     if (copy_to_user(buf, ret_entry->buffptr, retval)) {
         retval = -EFAULT;
@@ -76,57 +76,41 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                    loff_t *f_pos) {
     ssize_t retval = -ENOMEM;
-    char *ptr;
     struct aesd_dev *dev = (struct aesd_dev *)filp->private_data;
     PDEBUG("write %zu bytes with offset %lld", count, *f_pos);
     /**
      * TODO: handle write
      */
 
-    /* Allocate memory for received buffer */
-    ptr = kmalloc(count, GFP_KERNEL);
-    if (ptr == NULL) {
+    dev->data_buffer.buffptr = krealloc(
+        dev->data_buffer.buffptr, dev->data_buffer.size + count, GFP_KERNEL);
+    if (dev->data_buffer.buffptr == NULL) {
         PDEBUG("Error allocating memory!\n");
         return -ENOMEM;
     }
 
     /* Copy data from user space to kernel space */
-    if (copy_from_user(ptr, buf, count)) {
+    if (copy_from_user(
+            (char *)(dev->data_buffer.buffptr + dev->data_buffer.size), buf,
+            count)) {
         return -EFAULT;
     }
-    PDEBUG("Data copied is: %s", ptr);
+    PDEBUG("Data in buffer is: %s", dev->data_buffer.buffptr);
     retval = count;
+    dev->data_buffer.size += count;
 
-    // /* Check if it was ended with endline or not */
-    // if (ptr[count - 1] != '\n') {
-    //     PDEBUG("WARNING: Buffer has no end line\n");
-    //     dev->data_buffer.size += count;
-
-    //     if (dev->data_buffer.size == 0) {
-    //         PDEBUG("Creating new data_buffer\n");
-    //         dev->data_buffer.buffptr =
-    //             kmalloc(dev->data_buffer.size, GFP_KERNEL);
-    //         dev->data_buffer.buffptr = ptr;
-    //     } else {
-    //         PDEBUG("Appending to existing data_buffer\n");
-    //         dev->data_buffer.buffptr = krealloc(
-    //             dev->data_buffer.buffptr, dev->data_buffer.size, GFP_KERNEL);
-    //         dev->data_buffer.buffptr =
-    //             strcat((char *)dev->data_buffer.buffptr, ptr);
-    //     }
-    //     goto dontAddEntry;
-    // }
-
-    dev->data_buffer.buffptr =
-        krealloc(dev->data_buffer.buffptr, count, GFP_KERNEL);
-    dev->data_buffer.buffptr = ptr;
-    dev->data_buffer.size = count;
-    PDEBUG("Data in buffer: %s\n", dev->data_buffer.buffptr);
-    PDEBUG("Size of buffer: %zu\n", dev->data_buffer.size);
-    aesd_circular_buffer_add_entry(&(dev->buffer), &(dev->data_buffer));
-    PDEBUG("Entry added\n");
-    dev->data_buffer.size = 0;
-dontAddEntry:
+    /* Check if it was ended with endline or not */
+    if (dev->data_buffer.buffptr[dev->data_buffer.size - 1] != '\n') {
+        PDEBUG("WARNING: Buffer has no end line\n");
+        PDEBUG("Skipping data entry\n");
+    } else {
+        PDEBUG("Data in buffer: %s\n", dev->data_buffer.buffptr);
+        PDEBUG("Size of buffer: %zu\n", dev->data_buffer.size);
+        aesd_circular_buffer_add_entry(&(dev->buffer), &(dev->data_buffer));
+        PDEBUG("Entry added\n");
+        dev->data_buffer.size = 0;
+        dev->data_buffer.buffptr = NULL;
+    }
     return retval;
 }
 struct file_operations aesd_fops = {
@@ -145,7 +129,6 @@ static int aesd_setup_cdev(struct aesd_dev *dev) {
     dev->cdev.ops = &aesd_fops;
     err = cdev_add(&dev->cdev, devno, 1);
     if (err) {
-        // printk(KERN_ERR "Error %d adding aesd cdev", err);
         PDEBUG("Error %d adding aesd cdev", err);
     }
     return err;
@@ -154,8 +137,6 @@ static int aesd_setup_cdev(struct aesd_dev *dev) {
 int aesd_init_module(void) {
     dev_t dev = 0;
     int result;
-    uint8_t index;
-    struct aesd_buffer_entry *entry;
     result = alloc_chrdev_region(&dev, aesd_minor, 1, "aesdchar");
     aesd_major = MAJOR(dev);
     if (result < 0) {
@@ -185,16 +166,17 @@ deviceNumberFail:
 
 void aesd_cleanup_module(void) {
     uint8_t index;
-    struct aesd_buffer_entry *entry;
     dev_t devno = MKDEV(aesd_major, aesd_minor);
 
-    AESD_CIRCULAR_BUFFER_FOREACH(entry, &aesd_device.buffer, index) {
-        if (entry->buffptr)
-            kfree(entry->buffptr);
-    }
+    // for (index = 0; index < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; index++)
+    // {
+    //     if (aesd_device.buffer.entry[index].buffptr) {
+    //         kfree(aesd_device.buffer.entry[index].buffptr);
+    //     }
+    // }
 
-    if (aesd_device.data_buffer.buffptr)
-        kfree(aesd_device.data_buffer.buffptr);
+    // if (aesd_device.data_buffer.buffptr)
+    //     kfree(aesd_device.data_buffer.buffptr);
 
     cdev_del(&(aesd_device.cdev));
     unregister_chrdev_region(devno, 1);
