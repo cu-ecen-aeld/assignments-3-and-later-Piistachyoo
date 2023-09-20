@@ -144,9 +144,13 @@ void send_data(void) {
 
 void *start_thread(void *arg) {
     pthread_mutex_lock(&file_mutex);
+    syslog(LOG_PRIO(LOG_DEBUG), "Acquired mutex\n");
     receive_data();
+    syslog(LOG_PRIO(LOG_DEBUG), "Received data\n");
     send_data();
+    syslog(LOG_PRIO(LOG_DEBUG), "Sent data\n");
     pthread_mutex_unlock(&file_mutex);
+    syslog(LOG_PRIO(LOG_DEBUG), "Unlocked mutex\n");
     pthread_exit(arg);
 }
 #ifndef USE_AESD_CHAR_DEVICE
