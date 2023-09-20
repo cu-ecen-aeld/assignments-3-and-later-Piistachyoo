@@ -9,6 +9,7 @@
 #define AESD_CIRCULAR_BUFFER_H
 
 #ifdef __KERNEL__
+#include <linux/slab.h>
 #include <linux/types.h>
 #else
 #include <stdbool.h>

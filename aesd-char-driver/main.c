@@ -11,32 +11,32 @@
  *
  */
 
-#include <linux/module.h>
-#include <linux/init.h>
-#include <linux/printk.h>
-#include <linux/types.h>
-#include <linux/cdev.h>
-#include <linux/fs.h> // file_operations
 #include "aesdchar.h"
-int aesd_major =   0; // use dynamic major
-int aesd_minor =   0;
 
-MODULE_AUTHOR("Your Name Here"); /** TODO: fill in your name **/
+#define FALSE 0
+#define TRUE 1
+
+int aesd_major = 0; // use dynamic major
+int aesd_minor = 0;
+
+MODULE_AUTHOR("Piistachyoo");
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct aesd_dev aesd_device;
-
-int aesd_open(struct inode *inode, struct file *filp)
-{
+struct class *aesd_class;
+struct device *aesd_device_node;
+int aesd_open(struct inode *inode, struct file *filp) {
+    struct aesd_dev *ptr_aesd_dev;
     PDEBUG("open");
     /**
      * TODO: handle open
      */
+    ptr_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
+    filp->private_data = ptr_aesd_dev;
     return 0;
 }
 
-int aesd_release(struct inode *inode, struct file *filp)
-{
+int aesd_release(struct inode *inode, struct file *filp) {
     PDEBUG("release");
     /**
      * TODO: handle release
@@ -45,90 +45,160 @@ int aesd_release(struct inode *inode, struct file *filp)
 }
 
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
-                loff_t *f_pos)
-{
+                  loff_t *f_pos) {
     ssize_t retval = 0;
-    PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+    struct aesd_buffer_entry *ret_entry = 0;
+    struct aesd_dev *dev = (struct aesd_dev *)filp->private_data;
+    PDEBUG("read %zu bytes with offset %lld", count, *f_pos);
     /**
      * TODO: handle read
      */
+    ret_entry = aesd_circular_buffer_find_entry_offset_for_fpos(
+        &(dev->buffer), *f_pos, &retval);
+    if (ret_entry == NULL) {
+        PDEBUG("Not enough data written!\n");
+        return 0;
+    }
+
+    retval = ret_entry->size;
+    if (copy_to_user(buf, ret_entry->buffptr, retval)) {
+        retval = -EFAULT;
+    } else {
+        *f_pos += retval;
+    }
+
+    PDEBUG("Data copied: %s \n", ret_entry->buffptr);
+    PDEBUG("new offset: %lld\n", *f_pos);
+    PDEBUG("reval: %ld\n", retval);
     return retval;
 }
 
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
-                loff_t *f_pos)
-{
+                   loff_t *f_pos) {
     ssize_t retval = -ENOMEM;
-    PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
+    char *ptr;
+    struct aesd_dev *dev = (struct aesd_dev *)filp->private_data;
+    PDEBUG("write %zu bytes with offset %lld", count, *f_pos);
     /**
      * TODO: handle write
      */
+
+    /* Allocate memory for received buffer */
+    ptr = kmalloc(count, GFP_KERNEL);
+    if (ptr == NULL) {
+        PDEBUG("Error allocating memory!\n");
+        return -ENOMEM;
+    }
+
+    /* Copy data from user space to kernel space */
+    if (copy_from_user(ptr, buf, count)) {
+        return -EFAULT;
+    }
+    PDEBUG("Data copied is: %s", ptr);
+    retval = count;
+
+    // /* Check if it was ended with endline or not */
+    // if (ptr[count - 1] != '\n') {
+    //     PDEBUG("WARNING: Buffer has no end line\n");
+    //     dev->data_buffer.size += count;
+
+    //     if (dev->data_buffer.size == 0) {
+    //         PDEBUG("Creating new data_buffer\n");
+    //         dev->data_buffer.buffptr =
+    //             kmalloc(dev->data_buffer.size, GFP_KERNEL);
+    //         dev->data_buffer.buffptr = ptr;
+    //     } else {
+    //         PDEBUG("Appending to existing data_buffer\n");
+    //         dev->data_buffer.buffptr = krealloc(
+    //             dev->data_buffer.buffptr, dev->data_buffer.size, GFP_KERNEL);
+    //         dev->data_buffer.buffptr =
+    //             strcat((char *)dev->data_buffer.buffptr, ptr);
+    //     }
+    //     goto dontAddEntry;
+    // }
+
+    dev->data_buffer.buffptr =
+        krealloc(dev->data_buffer.buffptr, count, GFP_KERNEL);
+    dev->data_buffer.buffptr = ptr;
+    dev->data_buffer.size = count;
+    PDEBUG("Data in buffer: %s\n", dev->data_buffer.buffptr);
+    PDEBUG("Size of buffer: %zu\n", dev->data_buffer.size);
+    aesd_circular_buffer_add_entry(&(dev->buffer), &(dev->data_buffer));
+    PDEBUG("Entry added\n");
+    dev->data_buffer.size = 0;
+dontAddEntry:
     return retval;
 }
 struct file_operations aesd_fops = {
-    .owner =    THIS_MODULE,
-    .read =     aesd_read,
-    .write =    aesd_write,
-    .open =     aesd_open,
-    .release =  aesd_release,
+    .owner = THIS_MODULE,
+    .read = aesd_read,
+    .write = aesd_write,
+    .open = aesd_open,
+    .release = aesd_release,
 };
 
-static int aesd_setup_cdev(struct aesd_dev *dev)
-{
+static int aesd_setup_cdev(struct aesd_dev *dev) {
     int err, devno = MKDEV(aesd_major, aesd_minor);
 
     cdev_init(&dev->cdev, &aesd_fops);
     dev->cdev.owner = THIS_MODULE;
     dev->cdev.ops = &aesd_fops;
-    err = cdev_add (&dev->cdev, devno, 1);
+    err = cdev_add(&dev->cdev, devno, 1);
     if (err) {
-        printk(KERN_ERR "Error %d adding aesd cdev", err);
+        // printk(KERN_ERR "Error %d adding aesd cdev", err);
+        PDEBUG("Error %d adding aesd cdev", err);
     }
     return err;
 }
 
-
-
-int aesd_init_module(void)
-{
+int aesd_init_module(void) {
     dev_t dev = 0;
     int result;
-    result = alloc_chrdev_region(&dev, aesd_minor, 1,
-            "aesdchar");
+    uint8_t index;
+    struct aesd_buffer_entry *entry;
+    result = alloc_chrdev_region(&dev, aesd_minor, 1, "aesdchar");
     aesd_major = MAJOR(dev);
     if (result < 0) {
-        printk(KERN_WARNING "Can't get major %d\n", aesd_major);
-        return result;
+        // printk(KERN_WARNING "Can't get major %d\n", aesd_major);
+        PDEBUG("Can't get major %d\n", aesd_major);
+        goto deviceNumberFail;
     }
-    memset(&aesd_device,0,sizeof(struct aesd_dev));
-
-    /**
-     * TODO: initialize the AESD specific portion of the device
-     */
+    memset(&aesd_device, 0, sizeof(struct aesd_dev));
 
     result = aesd_setup_cdev(&aesd_device);
-
-    if( result ) {
-        unregister_chrdev_region(dev, 1);
+    if (result) {
+        goto cdevRegisterFail;
     }
-    return result;
 
+    aesd_circular_buffer_init(&aesd_device.buffer);
+
+    aesd_device.data_buffer.buffptr = kmalloc(0, GFP_KERNEL);
+    aesd_device.data_buffer.size = 0;
+
+    return 0;
+
+cdevRegisterFail:
+    unregister_chrdev_region(dev, 1);
+deviceNumberFail:
+    return result;
 }
 
-void aesd_cleanup_module(void)
-{
+void aesd_cleanup_module(void) {
+    uint8_t index;
+    struct aesd_buffer_entry *entry;
     dev_t devno = MKDEV(aesd_major, aesd_minor);
 
-    cdev_del(&aesd_device.cdev);
+    AESD_CIRCULAR_BUFFER_FOREACH(entry, &aesd_device.buffer, index) {
+        if (entry->buffptr)
+            kfree(entry->buffptr);
+    }
 
-    /**
-     * TODO: cleanup AESD specific poritions here as necessary
-     */
+    if (aesd_device.data_buffer.buffptr)
+        kfree(aesd_device.data_buffer.buffptr);
 
+    cdev_del(&(aesd_device.cdev));
     unregister_chrdev_region(devno, 1);
 }
-
-
 
 module_init(aesd_init_module);
 module_exit(aesd_cleanup_module);
