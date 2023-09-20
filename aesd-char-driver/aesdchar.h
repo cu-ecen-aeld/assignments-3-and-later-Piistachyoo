@@ -39,7 +39,7 @@ struct aesd_dev {
     struct cdev cdev; /* Char device structure      */
     struct aesd_buffer_entry data_buffer;
     struct aesd_circular_buffer buffer;
-    uint8_t noEndLine;
+    struct mutex lock;
 };
 
 #endif /* AESD_CHAR_DRIVER_AESDCHAR_H_ */

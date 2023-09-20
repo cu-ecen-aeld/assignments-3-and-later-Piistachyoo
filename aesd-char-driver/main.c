@@ -53,16 +53,25 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     /**
      * TODO: handle read
      */
+    if (mutex_lock_interruptible(&(dev->lock))) {
+        PDEBUG("ERROR: Couldn't acquire lock\n");
+        retval = -ERESTARTSYS;
+        goto inCaseOfFailure;
+    }
+
     ret_entry = aesd_circular_buffer_find_entry_offset_for_fpos(
         &(dev->buffer), *f_pos, &retval);
     if (ret_entry == NULL) {
         PDEBUG("Not enough data written!\n");
-        return 0;
+        retval = 0;
+        goto inCaseOfFailure;
     }
     PDEBUG("Readed data\n");
     retval = ret_entry->size;
     if (copy_to_user(buf, ret_entry->buffptr, retval)) {
+        PDEBUG("Error copying data to user buffer\n");
         retval = -EFAULT;
+        goto inCaseOfFailure;
     } else {
         *f_pos += retval;
     }
@@ -70,6 +79,9 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     PDEBUG("Data copied: %s \n", ret_entry->buffptr);
     PDEBUG("new offset: %lld\n", *f_pos);
     PDEBUG("reval: %ld\n", retval);
+
+inCaseOfFailure:
+    mutex_unlock(&(dev->lock));
     return retval;
 }
 
@@ -81,20 +93,29 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     /**
      * TODO: handle write
      */
+    if (mutex_lock_interruptible(&(dev->lock))) {
+        PDEBUG("ERROR: Couldn't acquire lock\n");
+        retval = -ERESTARTSYS;
+        goto inCaseOfFailure;
+    }
 
     dev->data_buffer.buffptr = krealloc(
         dev->data_buffer.buffptr, dev->data_buffer.size + count, GFP_KERNEL);
     if (dev->data_buffer.buffptr == NULL) {
         PDEBUG("Error allocating memory!\n");
-        return -ENOMEM;
+        retval = -ENOMEM;
+        goto inCaseOfFailure;
     }
 
     /* Copy data from user space to kernel space */
     if (copy_from_user(
             (char *)(dev->data_buffer.buffptr + dev->data_buffer.size), buf,
             count)) {
-        return -EFAULT;
+        PDEBUG("Error copying data from user buffer\n");
+        retval = -EFAULT;
+        goto inCaseOfFailure;
     }
+
     PDEBUG("Data in buffer is: %s", dev->data_buffer.buffptr);
     retval = count;
     dev->data_buffer.size += count;
@@ -111,6 +132,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         dev->data_buffer.size = 0;
         dev->data_buffer.buffptr = NULL;
     }
+
+inCaseOfFailure:
+    mutex_unlock(&(dev->lock));
     return retval;
 }
 struct file_operations aesd_fops = {
