@@ -191,7 +191,6 @@ void *timer_thread(void *arg) {
 #endif
 int main(int argc, char *argv[]) {
     int ret;
-
     if (argc > 1) {
         if (strcmp(argv[1], "-d") == 0) {
             pid_t pid = fork();
@@ -207,9 +206,10 @@ int main(int argc, char *argv[]) {
                 return -1;
             } else { /* Do Nothing */
             }
-            freopen("/dev/null", "r", stdin);
-            freopen("/dev/null", "w", stdout);
-            freopen("/dev/null", "w", stderr);
+            file = freopen("/dev/null", "r", stdin);
+            file = freopen("/dev/null", "w", stdout);
+            file = freopen("/dev/null", "w", stderr);
+            file = NULL;
         }
     }
     /* Set signal handler */
