@@ -15,7 +15,7 @@
 #define LOG_PRIO(_LEVEL) (LOG_USER | _LEVEL)
 #define BUFF_MAX_LEN 5000000
 
-//#define USE_AESD_CHAR_DEVICE 1
+#define USE_AESD_CHAR_DEVICE 1
 
 #ifndef USE_AESD_CHAR_DEVICE
 #define PATH "/var/tmp/aesdsocketdata"
