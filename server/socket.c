@@ -15,7 +15,7 @@
 #define LOG_PRIO(_LEVEL) (LOG_USER | _LEVEL)
 #define BUFF_MAX_LEN 5000000
 
-#define USE_AESD_CHAR_DEVICE 1
+//#define USE_AESD_CHAR_DEVICE 1
 
 #ifndef USE_AESD_CHAR_DEVICE
 #define PATH "/var/tmp/aesdsocketdata"
@@ -120,14 +120,12 @@ void receive_data(void) {
         index++;
     }
     syslog(LOG_PRIO(LOG_DEBUG), "Opening file\n");
-    /*
     //	pthread_mutex_lock(&file_mutex);
     file = fopen(PATH, "a");
     syslog(LOG_PRIO(LOG_DEBUG), "Writing to file\n");
     fwrite(my_buffer, sizeof(char), buffer_len, file);
     syslog(LOG_PRIO(LOG_DEBUG), "Closing file\n");
     fclose(file);
-    */
     //	pthread_mutex_unlock(&file_mutex);
 }
 
