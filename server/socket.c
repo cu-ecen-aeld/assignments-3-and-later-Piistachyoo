@@ -105,7 +105,7 @@ int initiate_connection(void) {
 }
 
 void receive_data(void) {
-    syslog(LOG_PRIO(LOG_DEBUG), "Entered function %s\n", __func__);
+    syslog(LOG_PRIO(LOG_DEBUG), "Entered function\n");
     char my_buffer[BUFF_MAX_LEN];
 
     int index = 0;
@@ -120,12 +120,14 @@ void receive_data(void) {
         index++;
     }
     syslog(LOG_PRIO(LOG_DEBUG), "Opening file\n");
+    /*
     //	pthread_mutex_lock(&file_mutex);
     file = fopen(PATH, "a");
     syslog(LOG_PRIO(LOG_DEBUG), "Writing to file\n");
     fwrite(my_buffer, sizeof(char), buffer_len, file);
     syslog(LOG_PRIO(LOG_DEBUG), "Closing file\n");
     fclose(file);
+    */
     //	pthread_mutex_unlock(&file_mutex);
 }
 
@@ -240,6 +242,10 @@ int main(int argc, char *argv[]) {
                peeradd.sa_data[2], peeradd.sa_data[3], peeradd.sa_data[4],
                peeradd.sa_data[5]);
         struct node *new = (struct node *)malloc(sizeof(struct node));
+        if (new == NULL) {
+            syslog(LOG_PRIO(LOG_DEBUG), "Error allocating memory\n");
+            continue;
+        }
         syslog(LOG_PRIO(LOG_DEBUG), "Creating thread\n");
         ret = pthread_create(&(new->thread), NULL, start_thread, (void *)NULL);
         if (0 != ret) {
