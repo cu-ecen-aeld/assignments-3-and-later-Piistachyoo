@@ -14,7 +14,7 @@ all: aesdsocket
 	@echo "build done!"
 
 aesdsocket: socket.o
-	$(CC) $(CFLAGS) socket.o -o aesdsocket
+	$(CC) $(CFLAGS) -lpthread socket.o -o aesdsocket
 
 socket.o: socket.c
 	$(CC) $(CFLAGS) -c socket.c -o socket.o
