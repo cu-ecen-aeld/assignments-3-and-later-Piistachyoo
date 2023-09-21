@@ -8,13 +8,14 @@
 
 CC ?= $(CROSS_COMPILE)gcc
 # Set flags
-CFLAGS += -g -Wall -Werror -pthread
+CFLAGS ?= -g -Wall -Werror -pthread
+LDFLAGS ?= -lpthread -lrt
 
 all: aesdsocket
 	@echo "build done!"
 
 aesdsocket: socket.o
-	$(CC) $(CFLAGS) -lpthread socket.o -o aesdsocket
+	$(CC) $(CFLAGS) $(LDFLAGS) socket.o -o aesdsocket
 
 socket.o: socket.c
 	$(CC) $(CFLAGS) -c socket.c -o socket.o
