@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
             HEAD = new;
         }
         syslog(LOG_PRIO(LOG_DEBUG), "Thread creation done!\n");
-        pthread_join(new->thread, NULL);
+        // pthread_join(new->thread, NULL);
         // free(new);
     }
     return 0;
