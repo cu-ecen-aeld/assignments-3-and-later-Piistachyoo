@@ -1,12 +1,12 @@
 # Add cross compilation support
 
-ifneq ($(CROSS_COMPILE),)
-	CC ?= ${CROSS_COMPILE}
-else
-	CC = gcc
-endif
+#ifneq ($(CROSS_COMPILE),)
+#	CC ?= ${CROSS_COMPILE}
+#else
+#	CC = gcc
+#endif
 
-
+CC ?= $(CROSS_COMPILE)gcc
 # Set flags
 CFLAGS += -g -Wall -Werror -pthread
 
