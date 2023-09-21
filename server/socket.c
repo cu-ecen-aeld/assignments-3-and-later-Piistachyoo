@@ -275,7 +275,7 @@ int main(int argc, char *argv[]) {
         }
         syslog(LOG_PRIO(LOG_DEBUG), "Thread creation done!\n");
         pthread_join(new->thread, NULL);
-        free(new);
+        // free(new);
     }
     return 0;
 }
