@@ -1,3 +1,4 @@
+#include "../aesd-char-driver/aesd_ioctl.h"
 #include <fcntl.h>
 #include <netdb.h>
 #include <pthread.h>
@@ -5,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -21,6 +23,9 @@
 #define PATH "/var/tmp/aesdsocketdata"
 #else
 #define PATH "/dev/aesdchar"
+#define IOCTL_CMD "AESDCHAR_IOCSEEKTO:"
+#define WRITE_CMD 19
+#define WRITE_CMD_OFF 21
 #endif
 
 struct node {
@@ -35,6 +40,7 @@ FILE *file;
 pthread_mutex_t file_mutex;
 struct sockaddr peeradd;
 struct node *HEAD = NULL;
+uint8_t ioctl_sent = 0;
 
 void signal_handler(int signal) {
     printf("Caught signal SIGINT!\n");
@@ -119,25 +125,40 @@ void receive_data(void) {
         }
         index++;
     }
-    syslog(LOG_PRIO(LOG_DEBUG), "Opening file\n");
-    //	pthread_mutex_lock(&file_mutex);
-    file = fopen(PATH, "a");
-    syslog(LOG_PRIO(LOG_DEBUG), "Writing to file\n");
-    fwrite(my_buffer, sizeof(char), buffer_len, file);
-    syslog(LOG_PRIO(LOG_DEBUG), "Closing file\n");
-    fclose(file);
-    //	pthread_mutex_unlock(&file_mutex);
+    if (strncmp(IOCTL_CMD, my_buffer, strlen(IOCTL_CMD)) == 0) {
+        ioctl_sent = 1;
+        struct aesd_seekto seekto;
+        seekto.write_cmd = my_buffer[WRITE_CMD] - '0';
+        seekto.write_cmd_offset = my_buffer[WRITE_CMD_OFF] - '0';
+        syslog(LOG_PRIO(LOG_DEBUG), "Calling ioctl with cmd = %lu\n",
+               AESDCHAR_IOCSEEKTO);
+        printf("Calling IOCTL with cmd = %lu\n", AESDCHAR_IOCSEEKTO);
+        printf("(%u, %u)\n", seekto.write_cmd, seekto.write_cmd_offset);
+        printf("(%c, %c)\n", my_buffer[WRITE_CMD], my_buffer[WRITE_CMD_OFF]);
+        file = fopen(PATH, "a");
+        if (ioctl(fileno(file), AESDCHAR_IOCSEEKTO, &seekto)) {
+            syslog(LOG_PRIO(LOG_DEBUG), "Error calling ioctl\n");
+        }
+        fclose(file);
+    } else {
+
+        syslog(LOG_PRIO(LOG_DEBUG), "Opening file\n");
+        file = fopen(PATH, "a");
+        syslog(LOG_PRIO(LOG_DEBUG), "Writing to file\n");
+        fwrite(my_buffer, sizeof(char), buffer_len, file);
+        syslog(LOG_PRIO(LOG_DEBUG), "Closing file\n");
+        fclose(file);
+    }
 }
 
 void send_data(void) {
     char *str_buffer = (char *)malloc(BUFF_MAX_LEN);
-    //	pthread_mutex_lock(&file_mutex);
     file = fopen(PATH, "r");
     while (fgets(str_buffer, BUFF_MAX_LEN, file)) {
         send(peerSocketFD, str_buffer, strlen(str_buffer), MSG_WAITALL);
     }
     fclose(file);
-    //	pthread_mutex_unlock(&file_mutex);
+
     printf("Closed connection from %u:%u:%u:%u\n", peeradd.sa_data[2],
            peeradd.sa_data[3], peeradd.sa_data[4], peeradd.sa_data[5]);
     syslog(LOG_PRIO(LOG_DEBUG), "Closed connection from %u:%u:%u:%u\n",
@@ -147,7 +168,7 @@ void send_data(void) {
 }
 
 void *start_thread(void *arg) {
-    syslog(LOG_PRIO(LOG_DEBUG), "Acquiring mutex\n");
+    // syslog(LOG_PRIO(LOG_DEBUG), "Acquiring mutex\n");
     pthread_mutex_lock(&file_mutex);
     syslog(LOG_PRIO(LOG_DEBUG), "Acquired mutex\n");
     syslog(LOG_PRIO(LOG_DEBUG), "Calling receive_data()\n");

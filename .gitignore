@@ -10,3 +10,5 @@ aesdsocket
 server/aesdsocket
 server/valgrind-out.txt
 server/nc
+server/Yamany
+server/Omar
